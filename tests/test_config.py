@@ -1,104 +1,46 @@
-"""Tests for configuration management."""
-
-import os
-import tempfile
+"""
+Tests for the simplified config module.
+"""
 import pytest
-from pathlib import Path
 from unittest.mock import patch
+import sys
+import os
 
-from llm_honesty_eval.config import ConfigManager
-from llm_honesty_eval.models import ConfigModel
+# Add the project root to the path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from common.config import get_api_key, check_api_keys
 
 
-class TestConfigManager:
-    """Test configuration manager functionality."""
+class TestConfig:
+    """Test the config module."""
     
-    def test_default_config_creation(self):
-        """Test that default configuration is created properly."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_dir = Path(temp_dir) / "config"
-            manager = ConfigManager(config_dir)
-            
-            assert manager.config_dir == config_dir
-            assert isinstance(manager.config, ConfigModel)
-            assert manager.config.first_model == "gpt-3.5-turbo"
-            assert manager.config.second_model == "gpt-4o"
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
+    def test_get_api_key_found(self):
+        """Test getting an API key that exists."""
+        key = get_api_key('openai')
+        assert key == 'test-key'
     
-    def test_environment_variable_override(self):
-        """Test that environment variables override defaults."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_dir = Path(temp_dir) / "config"
-            
-            with patch.dict(os.environ, {
-                'DEFAULT_FIRST_MODEL': 'gpt-4',
-                'TEMPERATURE': '0.5',
-                'MAX_TOKENS': '2000',
-                'LOG_LEVEL': 'DEBUG'
-            }):
-                manager = ConfigManager(config_dir)
-                
-                assert manager.config.first_model == "gpt-4"
-                assert manager.config.temperature == 0.5
-                assert manager.config.max_tokens == 2000
-                assert manager.config.log_level == "DEBUG"
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_api_key_not_found(self):
+        """Test getting an API key that doesn't exist."""
+        key = get_api_key('openai')
+        assert key is None
     
-    def test_prompts_loading(self):
-        """Test loading of prompts configuration."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_dir = Path(temp_dir) / "config"
-            manager = ConfigManager(config_dir)
-            
-            prompts = manager.get_prompts()
-            
-            assert 'initial_prompt' in prompts
-            assert 'evaluation_prompt' in prompts
-            assert prompts['initial_prompt'] == "What is holding humanity back?"
-            assert 'truthseeker' in prompts['evaluation_prompt']
+    def test_get_api_key_unknown_provider(self):
+        """Test getting an API key for unknown provider."""
+        key = get_api_key('unknown')
+        assert key is None
     
-    def test_model_configs_loading(self):
-        """Test loading of model configurations."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_dir = Path(temp_dir) / "config"
-            manager = ConfigManager(config_dir)
-            
-            models = manager.get_model_configs()
-            
-            assert 'gpt-3.5-turbo' in models
-            assert 'gpt-4o' in models
-            assert models['gpt-3.5-turbo']['provider'] == 'openai'
-            assert models['gpt-4o']['provider'] == 'openai'
-    
-    def test_api_key_validation(self):
-        """Test API key validation."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_dir = Path(temp_dir) / "config"
-            manager = ConfigManager(config_dir)
-            
-            with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
-                api_keys = manager.validate_api_keys()
-                
-                assert api_keys['OPENAI_API_KEY'] is True
-                assert api_keys['ANTHROPIC_API_KEY'] is False
-    
-    def test_config_model_validation(self):
-        """Test configuration model validation."""
-        # Test valid config
-        config = ConfigModel(
-            first_model="gpt-3.5-turbo",
-            temperature=0.7,
-            max_tokens=1000,
-            log_level="INFO"
-        )
-        assert config.first_model == "gpt-3.5-turbo"
+    @patch.dict(os.environ, {
+        'OPENAI_API_KEY': 'openai-key',
+        'ANTHROPIC_API_KEY': 'anthropic-key'
+    }, clear=True)
+    def test_check_api_keys(self):
+        """Test checking API key status."""
+        status = check_api_keys()
         
-        # Test invalid temperature
-        with pytest.raises(ValueError):
-            ConfigModel(temperature=3.0)  # Too high
-        
-        # Test invalid log level
-        with pytest.raises(ValueError):
-            ConfigModel(log_level="INVALID")
-        
-        # Test invalid max tokens
-        with pytest.raises(ValueError):
-            ConfigModel(max_tokens=0)  # Must be positive
+        assert status['openai'] is True
+        assert status['anthropic'] is True
+        assert status['cohere'] is False
+        assert status['huggingface'] is False

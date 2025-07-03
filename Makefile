@@ -1,17 +1,19 @@
-.PHONY: install install-dev test test-unit test-integration lint format clean build help
+.PHONY: help install install-dev test lint format clean run-basic run-compare run-prompts run-batch
 
-# Default target
 help:
 	@echo "Available commands:"
-	@echo "  install       Install package in development mode"
-	@echo "  install-dev   Install package with development dependencies"
-	@echo "  test          Run all tests"
-	@echo "  test-unit     Run unit tests only"
-	@echo "  test-integration  Run integration tests only"
-	@echo "  lint          Run linting (flake8, mypy)"
-	@echo "  format        Format code (black, isort)"
-	@echo "  clean         Clean build artifacts"
-	@echo "  build         Build package"
+	@echo "  install      - Install dependencies"
+	@echo "  install-dev  - Install with development dependencies"
+	@echo "  test         - Run tests"
+	@echo "  lint         - Run code linting"
+	@echo "  format       - Format code with black and isort"
+	@echo "  clean        - Clean artifacts"
+	@echo ""
+	@echo "Experiment scripts:"
+	@echo "  run-basic    - Run basic evaluation example"
+	@echo "  run-compare  - Compare different model combinations"
+	@echo "  run-prompts  - Experiment with evaluation prompts"
+	@echo "  run-batch    - Run batch evaluation on test dataset"
 
 install:
 	pip install -e .
@@ -20,21 +22,14 @@ install-dev:
 	pip install -e ".[dev]"
 
 test:
-	pytest
-
-test-unit:
-	pytest -m "not integration"
-
-test-integration:
-	pytest -m integration
+	pytest tests/ -v
 
 lint:
-	flake8 src tests
-	mypy src
+	flake8 common/ scripts/ tests/
 
 format:
-	black src tests
-	isort src tests
+	black common/ scripts/ tests/
+	isort common/ scripts/ tests/
 
 clean:
 	rm -rf build/
@@ -42,6 +37,17 @@ clean:
 	rm -rf *.egg-info/
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
+	rm -f *.json *.csv
 
-build: clean
-	python -m build
+# Experiment runners
+run-basic:
+	python scripts/basic_evaluation.py
+
+run-compare:
+	python scripts/compare_models.py
+
+run-prompts:
+	python scripts/experiment_prompts.py
+
+run-batch:
+	python scripts/batch_evaluation.py
